@@ -1,3 +1,6 @@
+import java.util.ArrayList;
+import java.util.HashMap;
+
 /* 		OO PARSER AND BYTE-CODE GENERATOR FOR TINY PL
  
 Grammar for TinyPL (using EBNF notation) is as follows:
@@ -32,7 +35,7 @@ while (i < n) {
 }
 end
 
-Sample Program:  GCD
+   Sample Program:  GCD
    
 int x, y;
 x = 121;
@@ -44,10 +47,7 @@ while (x != y) {
 }
 end
 
- */
-
-/*
- Sample Program - simple arithmetic with no paranthesis
+ 	Sample Program - simple arithmetic with no paranthesis
 int a, b, c , d;
 
 a = 4; b = 5; c = 6;
@@ -55,14 +55,12 @@ a = 4; b = 5; c = 6;
 d = 4 * 6 + 3;
 
 end
+
  */
-
-import java.util.HashMap;
-import java.util.ArrayList;
-
 
 public class Parser {
 	static HashMap<Character, Integer> id_map = new HashMap<Character, Integer>();
+	static HashMap<Character, Integer> value_id_map = new HashMap<Character, Integer>();
 	static int id = 0;
 	public static void main(String[] args)  {
 		System.out.println("Enter program and terminate with 'end'!\n");
@@ -71,90 +69,126 @@ public class Parser {
 		Program p = new Program();
 		System.out.println("\n ----> Here is the output bytecode");
 		Code.output();
+		for(Integer abc: value_id_map.values()) System.out.println(abc);
 		System.out.println("program ended!");
 	}
 }
 
 class Program {
 	public Program(){
-	 if(Lexer.nextToken != Token.KEY_END){
-		 Decls d = new Decls();
-		 Stmts s = new Stmts();	
-		 Program p = new Program();
-	 }
-	 else{
-		 Code.out.add("return");
-	 }
+		 
+		Decls d = new Decls();
+		Stmts s = new Stmts();	
+		Code.out.add("return");
+		 
 	}	 
 }
 
 class Decls {
 	public Decls(){
 		if(Lexer.nextToken == Token.KEY_INT){
-			Lexer.lex();
-			Idlist idl = new Idlist();	
+			Lexer.lex();	
 		}
-	}	 
-}
-
-class Idlist {
-	public Idlist(){
-		if(Lexer.nextToken == Token.COMMA){
-			Lexer.lex();
-			Idlist idl = new Idlist();
-		}		
-		//exit when you see the semicolon
-		else if(Lexer.nextToken == Token.SEMICOLON){
-			Lexer.lex();
-			return;
-		}
-		//risky. bad default
-		else if(Lexer.ident!=' '){
-			Parser.id_map.put(Lexer.ident, Parser.id++);
-			Lexer.lex();
-			Idlist idl = new Idlist();
-		}
-	}	 
-}
-
-class Stmt {
-	public Stmt(){
-//		if(Lexer.nextToken==Token.KEY_WHILE){
-//			Loop l = new Loop();
-//			Stmt st = new Stmt();
-//		}		
-//		else if(Lexer.nextToken == Token.KEY_IF){
-//			Cond c = new Cond();
-//			Stmt st = new Stmt();
-//		}
-		Assign a = new Assign();
-
-	}	 
-} 
-
-class Stmts {
-	public Stmts(){
-		Stmt s = new Stmt();
-	}	 
-}
-
-class Assign {
-	public Assign(){
-		Lexer.lex();
-		char c = Lexer.ident;
-		if(Parser.id_map.containsKey(c)){
-			if(Lexer.nextToken == Token.ASSIGN_OP){
-				Expr E = new Expr();
-			}
-//				Lexer.lex();
-//				if(Parser.id_map.containsKey(Lexer.ident)){
-//					Expr E = new Expr();
-//				}
-		}
+		Idlist id = new Idlist();
+		
 	}
 }
 
+class Idlist {
+	 public Idlist(){
+		 while (Lexer.nextToken != Token.SEMICOLON)
+		 {
+			 if (Lexer.nextToken == Token.ID){
+				 Parser.id_map.put(Lexer.ident, Parser.id++);
+			 }
+			 Lexer.lex();
+		 }
+		 Lexer.lex();
+	 }
+}
+
+class Stmt {
+	Loop loop;
+	Cond cond;
+	Assign as;
+	static char c;
+	static int resultOfFactor;
+	static int resultOfTerm = 1;
+	static int resultOfExpr = 0;
+	
+	
+	public Stmt() {
+		if (Lexer.nextToken == Token.KEY_WHILE) {
+			loop = new Loop();
+			solveLoop();
+		} else if (Lexer.nextToken == Token.KEY_IF) {
+			cond = new Cond();
+			solveCond();
+		} else if (Lexer.nextToken == Token.ID){
+			c = Lexer.ident;
+			as = new Assign();
+			solveAssign();
+		} else {
+			return;
+		}
+	}
+	
+	public void solveLoop(){
+		
+	}
+	
+	public void solveCond(){
+		Lexer.lex(); // if ( traversed uptil now
+		cond.solveCondition();
+		
+	}
+	
+	public void solveAssign(){
+		Lexer.lex();
+		as.solveAssignment();
+		return;
+		
+	}
+}
+
+class Stmts {
+	 public Stmts()
+	 {
+		 new Stmt();
+		 if (Lexer.nextToken == Token.SEMICOLON){
+			 Lexer.lex();
+			 new Stmts();
+			 
+		 }
+	 
+	 }
+			 
+ }
+
+
+class Assign {
+	Expr ex;
+	
+	public Assign(){
+		ex = new Expr();
+	}
+	public void solveAssignment(){
+		if (Lexer.nextToken == Token.ASSIGN_OP)
+		{
+			Lexer.lex();
+		}
+		ex.solveExpression();
+		
+		
+	}
+	 
+}
+
 class Cond {
+	Rexpr re = new Rexpr();
+	public void solveCondition(){
+		re.solveRexpr();
+	}
 	 
 }
 
@@ -167,69 +201,118 @@ class Cmpdstmt {
 }
 
 class Rexpr {
-	 
+	Expr e1 = new Expr();
+	Expr e2 = new Expr();
+	int op;
+	int valueExpr1;
+	int valueExpr2;
+	 public void solveRexpr(){
+		 
+		 // solving expression 1
+		 Lexer.lex();
+		 e1.solveExpression();
+		 valueExpr1 = Stmt.resultOfExpr;
+		 
+		 // storing the comparison operator
+		 op = Lexer.nextToken;
+		 
+		 // solving expression 2
+		 Lexer.lex();
+		 e2.solveExpression();
+		 valueExpr2 = Stmt.resultOfExpr;
+		 
+		 switch (op){
+		 	case 7:  // equal to
+		 		
+		 		break;
+		 	case 8:	 // greater than
+		 		
+		 		break;
+		 	case 9:	 // lesser than
+		 		
+		 		break;
+		 
+		 }
+		 
+	 }
 }
 
-class Expr {
-	public Expr(){
-		Term t = new Term();		
-		if(Lexer.nextToken == Token.ADD_OP || Lexer.nextToken == Token.SUB_OP){
+class Expr {  
+	Term t = new Term();
+	public void solveExpression(){
+		t.solveTerm();
+		
+		Stmt.resultOfExpr = Stmt.resultOfTerm;
+		
+		
+		while(Lexer.nextToken == Token.ADD_OP || Lexer.nextToken == Token.SUB_OP){ 
+			
 			int op = Lexer.nextToken;
+			
 			Lexer.lex();
-			Expr e = new Expr();
-			Code.out.add(Code.getCode(op));	
+			t.solveTerm();
+			
+			if (op == Token.ADD_OP){
+				Stmt.resultOfExpr = Stmt.resultOfExpr + Stmt.resultOfTerm;
+			}	
+			else Stmt.resultOfExpr = Stmt.resultOfExpr - Stmt.resultOfTerm;
+			
+			
+			
 		}
-	}	 
-}
-
-class Term {  
-	public Term(){
-		Factor f = new Factor();
-		if(Lexer.nextToken == Token.MULT_OP || Lexer.nextToken == Token.DIV_OP){	
-			int op = Lexer.nextToken;
-			Lexer.lex();
-			Term t = new Term();
-			Code.out.add(Code.getCode(op));				
+		// put updated variable value into hashmap value_id_map
+		if (Lexer.nextToken == Token.SEMICOLON){
+			Parser.value_id_map.put(Stmt.c, Stmt.resultOfExpr);
+			return;
 		}
+		
+		
 	}
 	 
 }
 
-class Factor {  
-	 public Factor(){
-		char c = Lexer.ident;
-		Lexer.lex();
-		if(Lexer.nextToken == Token.INT_LIT){
-			//perform some register arithmetic here
-			Lexer.lex();
-			//for assignment only
-			if(Lexer.nextToken == Token.SEMICOLON){
-				Code.out.add("iconst_" + Lexer.intValue);
-				Code.out.add("istore_" + Parser.id_map.get(c));
-				Lexer.lex();
-			}
-			
-			//load the integer to the register for further operations
-			else{
-				Code.out.add("bipush " + Lexer.intValue);
-				Lexer.lex();
-			}
-		}		
-		else if(Lexer.nextToken == Token.LEFT_PAREN){
-			Lexer.lex();
-			Expr ex = new Expr();
-			Lexer.lex();
-		}
-		else if(Parser.id_map.containsKey(c)){
-			//perform some arithmetic here using the register
-			Lexer.lex();
-			Code.out.add("iload_" + Parser.id_map.get(c));
-		}	
+class Term {  
+	 Factor f = new Factor();
+	 public void solveTerm(){
+		 f.solveFactor();
+		 
+		 Stmt.resultOfTerm = Stmt.resultOfFactor;
+		 
+		 
+		 while (Lexer.nextToken == Token.MULT_OP || Lexer.nextToken == Token.DIV_OP){
+			 int op = Lexer.nextToken;
+			 Lexer.lex();
+			 f.solveFactor();
+			 
+			 if (op == Token.MULT_OP)
+				 Stmt.resultOfTerm = Stmt.resultOfTerm * Stmt.resultOfFactor;
+			 else Stmt.resultOfTerm = Stmt.resultOfTerm / Stmt.resultOfFactor;
+			 
+		 }
 	 }
 }
 
+class Factor { 
+	
+	public void solveFactor(){
+		
+		if(Lexer.nextToken == Token.ID){
+			Stmt.resultOfFactor = Parser.value_id_map.get(Lexer.ident);
+			Lexer.lex();
+		} else if (Lexer.nextToken == Token.INT_LIT) {
+			Stmt.resultOfFactor = Lexer.intValue;
+			System.out.println(Stmt.resultOfFactor);
+			Lexer.lex();
+		} else if (Lexer.nextToken == Token.SEMICOLON) {
+			return;
+		}
+		
+	}
+	 
+}
+
 class Code {
-	static HashMap<Integer, String> opcode= new HashMap<Integer, String>();
+	static HashMap<Integer, String> opcode = new HashMap<Integer, String>();
 	public static void setCodes(){
 		opcode.put(Token.MULT_OP, "imult");
 		opcode.put(Token.SUB_OP, "isub");
@@ -248,6 +331,7 @@ class Code {
 		}	
 		out = new ArrayList<String>();
 	}	 
+	 
 }
 
 
