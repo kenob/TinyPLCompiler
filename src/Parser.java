@@ -1,5 +1,7 @@
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Queue;
 
 /* 		OO PARSER AND BYTE-CODE GENERATOR FOR TINY PL
  
@@ -115,6 +117,7 @@ class Stmt {
 	static int resultOfFactor;
 	static int resultOfTerm = 1;
 	static int resultOfExpr = 0;
+	static Queue<String> loopQueue = new LinkedList<String>();
 	
 	
 	public Stmt() {
@@ -138,7 +141,7 @@ class Stmt {
 	}
 	
 	public void solveCond(){
-		Lexer.lex(); // if ( traversed uptil now
+		Lexer.lex(); // if and '(' traversed uptil now
 		cond.solveCondition();
 		
 	}
@@ -156,10 +159,15 @@ class Stmts {
 	 {
 		 new Stmt();
 		 if (Lexer.nextToken == Token.SEMICOLON){
-			 Lexer.lex();
-			 new Stmts();
-			 
-		 }
+		 			 Lexer.lex();
+		 			 if (Lexer.nextToken == Token.KEY_END){
+		 				 return;
+		 			 }
+		 			 else{
+		 				new Stmts();
+		 			 }
+		 			 
+			 }
 	 
 	 }
 			 
@@ -168,6 +176,8 @@ class Stmts {
 
 class Assign {
 	Expr ex;
+	static Boolean firstTermCovered = false;
+	static Boolean firstFactorCovered = false;
 	
 	public Assign(){
 		ex = new Expr();
@@ -188,6 +198,7 @@ class Cond {
 	Rexpr re = new Rexpr();
 	public void solveCondition(){
 		re.solveRexpr();
+		Lexer.lex(); // moves to next statements after if(a>b) {} 
 	}
 	 
 }
@@ -198,6 +209,11 @@ class Loop {
 
 class Cmpdstmt {
 	 
+	
+	public void solveCompound(){
+		Lexer.lex(); 
+		new Stmts();
+	}
 }
 
 class Rexpr {
@@ -206,6 +222,7 @@ class Rexpr {
 	int op;
 	int valueExpr1;
 	int valueExpr2;
+	Cmpdstmt cmp = new Cmpdstmt();
 	 public void solveRexpr(){
 		 
 		 // solving expression 1
@@ -222,14 +239,28 @@ class Rexpr {
 		 valueExpr2 = Stmt.resultOfExpr;
 		 
 		 switch (op){
+		 	case 2:
+		 		Code.out.add("if_icmpeq ");
+		 		Lexer.lex(); // moves to compound Statement
+		 		cmp.solveCompound();
+		 		break;
+		 		
 		 	case 7:  // equal to
-		 		
+		 		Code.out.add("if_icmpne ");
+		 		Lexer.lex(); // moves to compound Statement
+		 		cmp.solveCompound();
 		 		break;
+		 		
 		 	case 8:	 // greater than
-		 		
+		 		Code.out.add("if_icmple ");
+		 		Lexer.lex(); // moves to compound Statement
+		 		cmp.solveCompound();
 		 		break;
-		 	case 9:	 // lesser than
 		 		
+		 	case 9:	 // lesser than
+		 		Code.out.add("if_icmpge ");
+		 		Lexer.lex(); // moves to compound Statement
+		 		cmp.solveCompound();
 		 		break;
 		 
 		 }
@@ -242,29 +273,37 @@ class Expr {
 	public void solveExpression(){
 		t.solveTerm();
 		
-		Stmt.resultOfExpr = Stmt.resultOfTerm;
+		if (Assign.firstTermCovered == false) {
+			Stmt.resultOfExpr = Stmt.resultOfTerm;
+			Assign.firstTermCovered = true;
+			//System.out.println(Stmt.resultOfExpr);
+		}
+
 		
-		
-		while(Lexer.nextToken == Token.ADD_OP || Lexer.nextToken == Token.SUB_OP){ 
+		if (Lexer.nextToken == Token.ADD_OP) {
 			
-			int op = Lexer.nextToken;
+			int termresult = Stmt.resultOfTerm;
 			
 			Lexer.lex();
-			t.solveTerm();
-			
-			if (op == Token.ADD_OP){
-				Stmt.resultOfExpr = Stmt.resultOfExpr + Stmt.resultOfTerm;
-			}	
-			else Stmt.resultOfExpr = Stmt.resultOfExpr - Stmt.resultOfTerm;
-			
-			
-			
-		}
-		// put updated variable value into hashmap value_id_map
-		if (Lexer.nextToken == Token.SEMICOLON){
-			Parser.value_id_map.put(Stmt.c, Stmt.resultOfExpr);
+			new Expr().solveExpression();
+
+			Stmt.resultOfExpr = Stmt.resultOfExpr + termresult;
+			System.out.println(Stmt.resultOfExpr);
 			return;
+			
+		} else if (Lexer.nextToken == Token.SUB_OP) {
+			
+			int termresult = Stmt.resultOfTerm;
+			
+			Lexer.lex();
+			new Expr().solveExpression();
+
+			Stmt.resultOfExpr = Stmt.resultOfExpr - termresult;
+			return;
+		} else if (Lexer.nextToken != Token.ADD_OP && Lexer.nextToken != Token.SUB_OP){
+			Stmt.resultOfExpr = Stmt.resultOfTerm;
 		}
+
 		
 		
 	}
@@ -274,21 +313,33 @@ class Expr {
 class Term {  
 	 Factor f = new Factor();
 	 public void solveTerm(){
-		 f.solveFactor();
+		f.solveFactor();
 		 
-		 Stmt.resultOfTerm = Stmt.resultOfFactor;
+		if (Assign.firstFactorCovered == false) {
+			Stmt.resultOfTerm = Stmt.resultOfFactor;
+			Assign.firstFactorCovered = true;
+		}
+		
+		
+
+		if (Lexer.nextToken == Token.MULT_OP) {
+			int factresult = Stmt.resultOfFactor;
+			Lexer.lex();
+			new Term().solveTerm();
+
+			Stmt.resultOfTerm = Stmt.resultOfTerm * factresult;
+		} else if (Lexer.nextToken == Token.DIV_OP) {
+			
+			int factresult = Stmt.resultOfFactor;
+			Lexer.lex();
+			new Term().solveTerm();
+
+			Stmt.resultOfTerm = Stmt.resultOfTerm / factresult;
+		} else if (Lexer.nextToken != Token.MULT_OP && Lexer.nextToken != Token.DIV_OP){
+			Stmt.resultOfTerm = Stmt.resultOfFactor;
+		}
+			
 		 
-		 
-		 while (Lexer.nextToken == Token.MULT_OP || Lexer.nextToken == Token.DIV_OP){
-			 int op = Lexer.nextToken;
-			 Lexer.lex();
-			 f.solveFactor();
-			 
-			 if (op == Token.MULT_OP)
-				 Stmt.resultOfTerm = Stmt.resultOfTerm * Stmt.resultOfFactor;
-			 else Stmt.resultOfTerm = Stmt.resultOfTerm / Stmt.resultOfFactor;
-			 
-		 }
 	 }
 }
 
@@ -299,10 +350,11 @@ class Factor {
 		if(Lexer.nextToken == Token.ID){
 			Stmt.resultOfFactor = Parser.value_id_map.get(Lexer.ident);
 			Lexer.lex();
+			return;
 		} else if (Lexer.nextToken == Token.INT_LIT) {
 			Stmt.resultOfFactor = Lexer.intValue;
-			System.out.println(Stmt.resultOfFactor);
 			Lexer.lex();
+			return; 
 		} else if (Lexer.nextToken == Token.SEMICOLON) {
 			return;
 		}
