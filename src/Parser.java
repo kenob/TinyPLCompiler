@@ -70,6 +70,7 @@ public class Parser {
 class Program {
 	public Program(){
 			 Decls d = new Decls();
+			 Lexer.lex();
 			 Stmts s = new Stmts();
 			 System.out.println("here");
 			 Code.out.add("return");
@@ -111,13 +112,11 @@ class Stmt {
 	
 	public Stmt(){
 		if(Lexer.nextToken == Token.KEY_WHILE){
+			Lexer.lex();	// now in '(' (left brace)
 			l = new Loop();
 		} else if (Lexer.nextToken == Token.KEY_IF){
 			Lexer.lex();	// now in '(' (left brace)
 			c = new Cond();
-			if (Lexer.nextToken == Token.KEY_ELSE){
-				// fill this
-			}
 		} else if (Lexer.nextToken == Token.ID) {
 			Lexer.lex();	// skipping over equality
 			a = new Assign();
@@ -132,15 +131,11 @@ class Stmts {
 	public Stmts()
 	 {	
 		 new Stmt();
-		 
-		 if(Lexer.nextToken!= Token.KEY_END){
-			 Lexer.lex();
+		 if (Lexer.nextToken == Token.RIGHT_BRACE){
+			 return;
 		 }
-		 
-		 
-		 if (Lexer.nextToken != Token.KEY_END && Lexer.nextToken != Token.RIGHT_BRACE)
+		 if (Lexer.nextToken != Token.KEY_END)
 		 {	
-			 //Lexer.lex();
 			 new Stmts();
 		 }
 		 return;
@@ -159,11 +154,11 @@ class Assign {
 		assignment = Lexer.ident;
 		Lexer.lex(); // moving over to first part of the expression
 		new Expr();
+		Lexer.lex();
 		Parser.id_value_map.put(assignment, Assign.resultOfExpr);
 		int storeID = Parser.id_map.get(assignment);
 		Code.out.add("istore_" + storeID);
-		Code.bytePosition += Code.getCost("istore");
-		
+		Code.bytePosition += Code.getCost("istore"); 
 		
 		firstTermCovered = false;
 		firstFactorCovered = false;
@@ -179,26 +174,53 @@ class Cond {
 	 public Cond(){
 		Lexer.lex();	// LHS of Rexpr
 		new Rexpr();	// evaluate Rexpr
-		System.out.println(Lexer.nextToken);
 		Lexer.lex();	// goes to start of compound statement
 		Lexer.lex();	// goes to first part of the compound statement
 		int listinitialSize = Code.out.size() - 1;
 		new Cmpdstmt();
+		if (Lexer.nextToken == Token.KEY_ELSE){
+			Code.out.add("goto");
+			Code.bytePosition += Code.getCost("goto");
+			Code.out.set(listinitialSize, Code.out.get(listinitialSize) + " " + Code.bytePosition);
+			int gotoPosition = Code.out.size() - 1;
+			Lexer.lex();	// goes to start of else compound statement
+			Lexer.lex();	// goes to first part of else compound statement
+			new Cmpdstmt();
+			Code.out.set(gotoPosition, Code.out.get(gotoPosition) + " " + Code.bytePosition);
+			
+			
+		}
+		else{
+			Code.out.set(listinitialSize, Code.out.get(listinitialSize) + " " + Code.bytePosition);
+		}
 		
-		Code.out.set(listinitialSize, Code.out.get(listinitialSize) + " " + Code.bytePosition);
 		
 		
 	 }
 }
 
 class Loop {
-	 
+	 public Loop(){
+		Lexer.lex(); // LHS of Rexpr
+		int gotoWhilePos = Code.bytePosition;
+		new Rexpr(); // evaluate Rexpr
+		Lexer.lex(); // goes to start of compound statement
+		Lexer.lex(); // goes to first part of the compound statement
+		int listWhilePos = Code.out.size() - 1;
+		new Cmpdstmt();
+		Code.out.add("goto" + " " + gotoWhilePos);
+		Code.bytePosition += Code.getCost("goto");
+		Code.out.set(listWhilePos, Code.out.get(listWhilePos) + " "
+					+ Code.bytePosition);
+		
+	 }
 }
 
 class Cmpdstmt {
 	 public Cmpdstmt(){
 		 new Stmts();
-		 Lexer.lex();	// next phrase in statement after } like if, while or assign
+		 Lexer.lex();	// come to end of compound statement '}'
+		 System.out.println("here" + Lexer.nextToken);
 	 }
 }
 
