@@ -1,5 +1,7 @@
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -69,6 +71,7 @@ class Program {
 	public Program(){
 			 Decls d = new Decls();
 			 Stmts s = new Stmts();
+			 System.out.println("here");
 			 Code.out.add("return");
 	}
 }
@@ -92,6 +95,7 @@ class Idlist {
 				
 			} else if (Lexer.nextToken == Token.ID) {
 				Parser.id_map.put(Lexer.ident, Parser.id++);
+				Parser.id_value_map.put(Lexer.ident, 0);
 				Lexer.lex();
 			} else {
 				break;
@@ -104,11 +108,16 @@ class Stmt {
 	Assign a;
 	Cond c;
 	Loop l;
+	
 	public Stmt(){
 		if(Lexer.nextToken == Token.KEY_WHILE){
 			l = new Loop();
 		} else if (Lexer.nextToken == Token.KEY_IF){
+			Lexer.lex();	// now in '(' (left brace)
 			c = new Cond();
+			if (Lexer.nextToken == Token.KEY_ELSE){
+				// fill this
+			}
 		} else if (Lexer.nextToken == Token.ID) {
 			Lexer.lex();	// skipping over equality
 			a = new Assign();
@@ -123,12 +132,18 @@ class Stmts {
 	public Stmts()
 	 {	
 		 new Stmt();
-		 if (Lexer.nextToken != Token.KEY_END)
-		 {	
+		 
+		 if(Lexer.nextToken!= Token.KEY_END){
 			 Lexer.lex();
+		 }
+		 
+		 
+		 if (Lexer.nextToken != Token.KEY_END && Lexer.nextToken != Token.RIGHT_BRACE)
+		 {	
+			 //Lexer.lex();
 			 new Stmts();
 		 }
-	 
+		 return;
 	 }
 }
 
@@ -143,11 +158,11 @@ class Assign {
 	public Assign(){
 		assignment = Lexer.ident;
 		Lexer.lex(); // moving over to first part of the expression
-		
 		new Expr();
 		Parser.id_value_map.put(assignment, Assign.resultOfExpr);
 		int storeID = Parser.id_map.get(assignment);
 		Code.out.add("istore_" + storeID);
+		Code.bytePosition += Code.getCost("istore");
 		
 		
 		firstTermCovered = false;
@@ -161,7 +176,19 @@ class Assign {
 }
 
 class Cond {
-	 
+	 public Cond(){
+		Lexer.lex();	// LHS of Rexpr
+		new Rexpr();	// evaluate Rexpr
+		System.out.println(Lexer.nextToken);
+		Lexer.lex();	// goes to start of compound statement
+		Lexer.lex();	// goes to first part of the compound statement
+		int listinitialSize = Code.out.size() - 1;
+		new Cmpdstmt();
+		
+		Code.out.set(listinitialSize, Code.out.get(listinitialSize) + " " + Code.bytePosition);
+		
+		
+	 }
 }
 
 class Loop {
@@ -169,11 +196,46 @@ class Loop {
 }
 
 class Cmpdstmt {
-	 
+	 public Cmpdstmt(){
+		 new Stmts();
+		 Lexer.lex();	// next phrase in statement after } like if, while or assign
+	 }
 }
 
 class Rexpr {
-	 
+	 static Queue<String> queue = new LinkedList<String>();
+	 static char rexprComparator;
+	 public Rexpr(){
+		 new Expr(); // evaluated first expression
+		 int oper = Lexer.nextToken;
+		 Lexer.lex(); // goes to RHS of Rexpr
+		 new Expr();	// reached RIGHT PAREN of Rexpr
+		 switch (oper){
+		 
+		 case 2:
+			Code.out.add("if_icmpeq");
+			Code.bytePosition += Code.getCost("if_icmpeq");
+			break;
+		 
+		 case 7:
+		    Code.out.add("if_icmpne");
+			Code.bytePosition += Code.getCost("if_icmpne"); 
+			break;
+		 
+		 case 8:
+			Code.out.add("if_icmple");
+			Code.bytePosition += Code.getCost("if_icmple"); 
+			break;
+		 
+		 case 9:
+			Code.out.add("if_icmpge");	
+			Code.bytePosition += Code.getCost("if_icmpge"); 
+			break;
+			 
+		 }
+		 
+		 
+	 }
 }
 
 class Expr {  
@@ -208,6 +270,7 @@ class Expr {
 			}
 			
 			Code.out.add(Code.getCode(op));
+			Code.bytePosition += Code.getCost(Code.getCode(op));
 		} else if (Lexer.nextToken != Token.ADD_OP && Lexer.nextToken != Token.SUB_OP){
 			Assign.resultOfExpr = Assign.resultOfTerm;
 		}
@@ -246,6 +309,8 @@ class Term {
 			}
 			
 			Code.out.add(Code.getCode(op));
+			Code.bytePosition += Code.getCost(Code.getCode(op));
+			
 		} else if (Lexer.nextToken != Token.MULT_OP && Lexer.nextToken != Token.DIV_OP){
 			Assign.resultOfTerm = Assign.resultOfFactor;
 		}
@@ -263,16 +328,20 @@ class Factor {
 			Lexer.lex();
 			if (Lexer.intValue >=0 && Lexer.intValue < 6){
 				Code.out.add("iconst_"+ Assign.resultOfFactor);
+				Code.bytePosition += Code.getCost("iconst");
 			} else if (Lexer.intValue >=6 && Lexer.intValue < 128) {
 				Code.out.add("bipush "+ Assign.resultOfFactor);
+				Code.bytePosition += Code.getCost("bipush");
 			} else if (Lexer.intValue >= 128) {
 				Code.out.add("sipush "+ Assign.resultOfFactor);
+				Code.bytePosition += Code.getCost("sipush");
 			}
 			
 			break;
 		case Token.ID:
 			Assign.resultOfFactor = Parser.id_value_map.get(Lexer.ident);
 			Code.out.add("iload_" + Parser.id_map.get(Lexer.ident));
+			Code.bytePosition += Code.getCost("iload");
 			Lexer.lex();
 			break;
 		case Token.LEFT_PAREN: // '('
@@ -290,6 +359,7 @@ class Factor {
 class Code {
 	static HashMap<Character, String> opcode= new HashMap<Character, String>();
 	static HashMap<String, Integer> bytesToAddCode = new HashMap<String, Integer>();
+	static int bytePosition = 0;
 	public static void setCodes(){
 		opcode.put('*', "imul");
 		opcode.put('-', "isub");
@@ -308,6 +378,11 @@ class Code {
 		bytesToAddCode.put("idiv", 1);
 		bytesToAddCode.put("return", 1);
 		bytesToAddCode.put("iload", 1);
+		bytesToAddCode.put("if_icmple", 3);
+		bytesToAddCode.put("goto", 3);
+		bytesToAddCode.put("if_icmpge", 3);
+		bytesToAddCode.put("if_icmpeq", 3);
+		bytesToAddCode.put("if_icmpne", 3);
 		
 	}
 	
@@ -316,9 +391,14 @@ class Code {
 	}
 
 	static ArrayList<String> out = new ArrayList<String>();
+	public static int getCost(String a){
+		return Code.bytesToAddCode.get(a);
+	}
+	
+	
 	public static void output(){
 		int bytecount = 0;
-		Pattern p = Pattern.compile("([a-z]+)");
+		Pattern p = Pattern.compile("(([a-z]+)_?([a-z]+))");
 		Matcher m1;
 		int bytes;
 		for (String a:out){
