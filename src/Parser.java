@@ -63,25 +63,31 @@ public class Parser {
 		Code.setCodes();
 		Code.bytesToAdd();
 		Program p = new Program();
+		System.out.println();
+		System.out.println();
+		System.out.println("JAVA BYTE CODE BELOW: -->");
+		System.out.println();
 		Code.output();
 	}
 }
 
 class Program {
+	Decls d;
+	Stmts s;
 	public Program(){
-			 Decls d = new Decls();
+			 d = new Decls();
 			 Lexer.lex();
-			 Stmts s = new Stmts();
-			 System.out.println("here");
+			 s = new Stmts();
 			 Code.out.add("return");
 	}
 }
 
 class Decls {
+	Idlist idl;
 	public Decls(){
 		if(Lexer.nextToken == Token.KEY_INT){
 			Lexer.lex();
-			Idlist idl = new Idlist();	
+			idl = new Idlist();	
 		}
 	}
 }
@@ -128,15 +134,17 @@ class Stmt {
 } 
 
 class Stmts {
+	Stmts st;
+	Stmt s;
 	public Stmts()
 	 {	
-		 new Stmt();
+		 s = new Stmt();
 		 if (Lexer.nextToken == Token.RIGHT_BRACE){
 			 return;
 		 }
 		 if (Lexer.nextToken != Token.KEY_END)
 		 {	
-			 new Stmts();
+			st = new Stmts();
 		 }
 		 return;
 	 }
@@ -149,11 +157,12 @@ class Assign {
 	static Boolean firstTermCovered = false;
 	static Boolean firstFactorCovered = false;
 	static char assignment;
+	Expr e;
 	
 	public Assign(){
 		assignment = Lexer.ident;
 		Lexer.lex(); // moving over to first part of the expression
-		new Expr();
+		e = new Expr();
 		Lexer.lex();
 		Parser.id_value_map.put(assignment, Assign.resultOfExpr);
 		int storeID = Parser.id_map.get(assignment);
@@ -171,13 +180,15 @@ class Assign {
 }
 
 class Cond {
+	Rexpr rexp;
+	Cmpdstmt c;
 	 public Cond(){
 		Lexer.lex();	// LHS of Rexpr
-		new Rexpr();	// evaluate Rexpr
+		rexp = new Rexpr();	// evaluate Rexpr
 		Lexer.lex();	// goes to start of compound statement
 		Lexer.lex();	// goes to first part of the compound statement
 		int listinitialSize = Code.out.size() - 1;
-		new Cmpdstmt();
+		c = new Cmpdstmt();
 		if (Lexer.nextToken == Token.KEY_ELSE){
 			Code.out.add("goto");
 			Code.bytePosition += Code.getCost("goto");
@@ -185,7 +196,7 @@ class Cond {
 			int gotoPosition = Code.out.size() - 1;
 			Lexer.lex();	// goes to start of else compound statement
 			Lexer.lex();	// goes to first part of else compound statement
-			new Cmpdstmt();
+			c = new Cmpdstmt();
 			Code.out.set(gotoPosition, Code.out.get(gotoPosition) + " " + Code.bytePosition);
 			
 			
@@ -200,14 +211,16 @@ class Cond {
 }
 
 class Loop {
+	Rexpr rexp;
+	Cmpdstmt cmp;
 	 public Loop(){
 		Lexer.lex(); // LHS of Rexpr
 		int gotoWhilePos = Code.bytePosition;
-		new Rexpr(); // evaluate Rexpr
+		rexp = new Rexpr(); // evaluate Rexpr
 		Lexer.lex(); // goes to start of compound statement
 		Lexer.lex(); // goes to first part of the compound statement
 		int listWhilePos = Code.out.size() - 1;
-		new Cmpdstmt();
+		cmp = new Cmpdstmt();
 		Code.out.add("goto" + " " + gotoWhilePos);
 		Code.bytePosition += Code.getCost("goto");
 		Code.out.set(listWhilePos, Code.out.get(listWhilePos) + " "
@@ -217,21 +230,23 @@ class Loop {
 }
 
 class Cmpdstmt {
+	Stmts st;
 	 public Cmpdstmt(){
-		 new Stmts();
+		 st = new Stmts();
 		 Lexer.lex();	// come to end of compound statement '}'
-		 System.out.println("here" + Lexer.nextToken);
 	 }
 }
 
 class Rexpr {
+	Expr e1;
+	Expr e2;
 	 static Queue<String> queue = new LinkedList<String>();
 	 static char rexprComparator;
 	 public Rexpr(){
-		 new Expr(); // evaluated first expression
+		 e1 = new Expr(); // evaluated first expression
 		 int oper = Lexer.nextToken;
 		 Lexer.lex(); // goes to RHS of Rexpr
-		 new Expr();	// reached RIGHT PAREN of Rexpr
+		 e2 = new Expr();	// reached RIGHT PAREN of Rexpr
 		 switch (oper){
 		 
 		 case 2:
