@@ -1,5 +1,7 @@
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /* 		OO PARSER AND BYTE-CODE GENERATOR FOR TINY PL
  
@@ -57,6 +59,7 @@ public class Parser {
 		System.out.println("Enter program and terminate with 'end'!\n");
 		Lexer.lex();
 		Code.setCodes();
+		Code.bytesToAdd();
 		Program p = new Program();
 		Code.output();
 	}
@@ -142,6 +145,7 @@ class Assign {
 		Lexer.lex(); // moving over to first part of the expression
 		
 		new Expr();
+		Parser.id_value_map.put(assignment, Assign.resultOfExpr);
 		int storeID = Parser.id_map.get(assignment);
 		Code.out.add("istore_" + storeID);
 		
@@ -313,8 +317,21 @@ class Code {
 
 	static ArrayList<String> out = new ArrayList<String>();
 	public static void output(){
+		int bytecount = 0;
+		Pattern p = Pattern.compile("([a-z]+)");
+		Matcher m1;
+		int bytes;
 		for (String a:out){
-			System.out.println(a);
+			m1 = p.matcher(a);
+			if (m1.find() == true)
+			{
+				bytes = Code.bytesToAddCode.get(m1.group());
+			}
+			else{
+				bytes = 1;
+			}
+			System.out.println(bytecount + ": " + a);
+			bytecount +=bytes;
 		}
 	out = new ArrayList<String>();
 	}
