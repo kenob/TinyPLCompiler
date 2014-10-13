@@ -1,7 +1,5 @@
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Queue;
 
 /* 		OO PARSER AND BYTE-CODE GENERATOR FOR TINY PL
  
@@ -49,157 +47,116 @@ while (x != y) {
 }
 end
 
- 	Sample Program - simple arithmetic with no paranthesis
-int a, b, c , d;
-
-a = 4; b = 5; c = 6;
-
-d = 4 * 6 + 3;
-
-end
-
  */
 
 public class Parser {
 	static HashMap<Character, Integer> id_map = new HashMap<Character, Integer>();
-	static HashMap<Character, Integer> value_id_map = new HashMap<Character, Integer>();
+	static HashMap<Character, Integer> id_value_map = new HashMap<Character, Integer>();
 	static int id = 0;
 	public static void main(String[] args)  {
 		System.out.println("Enter program and terminate with 'end'!\n");
-		Code.setCodes();
 		Lexer.lex();
+		Code.setCodes();
 		Program p = new Program();
-		System.out.println("\n ----> Here is the output bytecode");
 		Code.output();
-		for(Integer abc: value_id_map.values()) System.out.println(abc);
-		System.out.println("program ended!");
 	}
 }
 
 class Program {
 	public Program(){
-		 
-		Decls d = new Decls();
-		Stmts s = new Stmts();	
-		Code.out.add("return");
-		 
-	}	 
+			 Decls d = new Decls();
+			 Stmts s = new Stmts();
+			 Code.out.add("return");
+	}
 }
 
 class Decls {
 	public Decls(){
 		if(Lexer.nextToken == Token.KEY_INT){
-			Lexer.lex();	
+			Lexer.lex();
+			Idlist idl = new Idlist();	
 		}
-		Idlist id = new Idlist();
-		
 	}
 }
 
 class Idlist {
-	 public Idlist(){
-		 while (Lexer.nextToken != Token.SEMICOLON)
-		 {
-			 if (Lexer.nextToken == Token.ID){
-				 Parser.id_map.put(Lexer.ident, Parser.id++);
-			 }
-			 Lexer.lex();
-		 }
-		 Lexer.lex();
-	 }
+	public Idlist(){
+		while(Lexer.nextToken != Token.SEMICOLON)
+		{
+			if (Lexer.nextToken == Token.COMMA)
+			{
+				Lexer.lex();
+				
+			} else if (Lexer.nextToken == Token.ID) {
+				Parser.id_map.put(Lexer.ident, Parser.id++);
+				Lexer.lex();
+			} else {
+				break;
+			}
+		}
+	}
 }
 
 class Stmt {
-	Loop loop;
-	Cond cond;
-	Assign as;
-	static char c;
+	Assign a;
+	Cond c;
+	Loop l;
+	public Stmt(){
+		if(Lexer.nextToken == Token.KEY_WHILE){
+			l = new Loop();
+		} else if (Lexer.nextToken == Token.KEY_IF){
+			c = new Cond();
+		} else if (Lexer.nextToken == Token.ID) {
+			Lexer.lex();	// skipping over equality
+			a = new Assign();
+			
+		}
+		
+	}
+	 
+} 
+
+class Stmts {
+	public Stmts()
+	 {	
+		 new Stmt();
+		 if (Lexer.nextToken != Token.KEY_END)
+		 {	
+			 Lexer.lex();
+			 new Stmts();
+		 }
+	 
+	 }
+}
+
+class Assign {
 	static int resultOfFactor;
 	static int resultOfTerm = 1;
 	static int resultOfExpr = 0;
-	static Queue<String> loopQueue = new LinkedList<String>();
-	
-	
-	public Stmt() {
-		if (Lexer.nextToken == Token.KEY_WHILE) {
-			loop = new Loop();
-			solveLoop();
-		} else if (Lexer.nextToken == Token.KEY_IF) {
-			cond = new Cond();
-			solveCond();
-		} else if (Lexer.nextToken == Token.ID){
-			c = Lexer.ident;
-			as = new Assign();
-			solveAssign();
-		} else {
-			return;
-		}
-	}
-	
-	public void solveLoop(){
-		
-	}
-	
-	public void solveCond(){
-		Lexer.lex(); // if and '(' traversed uptil now
-		cond.solveCondition();
-		
-	}
-	
-	public void solveAssign(){
-		Lexer.lex();
-		as.solveAssignment();
-		return;
-		
-	}
-}
-
-class Stmts {
-	 public Stmts()
-	 {
-		 new Stmt();
-		 if (Lexer.nextToken == Token.SEMICOLON){
-		 			 Lexer.lex();
-		 			 if (Lexer.nextToken == Token.KEY_END){
-		 				 return;
-		 			 }
-		 			 else{
-		 				new Stmts();
-		 			 }
-		 			 
-			 }
-	 
-	 }
-			 
- }
-
-
-class Assign {
-	Expr ex;
 	static Boolean firstTermCovered = false;
 	static Boolean firstFactorCovered = false;
+	static char assignment;
 	
 	public Assign(){
-		ex = new Expr();
-	}
-	public void solveAssignment(){
-		if (Lexer.nextToken == Token.ASSIGN_OP)
-		{
-			Lexer.lex();
-		}
-		ex.solveExpression();
+		assignment = Lexer.ident;
+		Lexer.lex(); // moving over to first part of the expression
+		
+		new Expr();
+		int storeID = Parser.id_map.get(assignment);
+		Code.out.add("istore_" + storeID);
 		
 		
+		firstTermCovered = false;
+		firstFactorCovered = false;
+		resultOfTerm = 1;
+		resultOfExpr = 0;
+		
 	}
-	 
+	
+	
 }
 
 class Cond {
-	Rexpr re = new Rexpr();
-	public void solveCondition(){
-		re.solveRexpr();
-		Lexer.lex(); // moves to next statements after if(a>b) {} 
-	}
 	 
 }
 
@@ -209,181 +166,158 @@ class Loop {
 
 class Cmpdstmt {
 	 
-	
-	public void solveCompound(){
-		Lexer.lex(); 
-		new Stmts();
-	}
 }
 
 class Rexpr {
-	Expr e1 = new Expr();
-	Expr e2 = new Expr();
-	int op;
-	int valueExpr1;
-	int valueExpr2;
-	Cmpdstmt cmp = new Cmpdstmt();
-	 public void solveRexpr(){
-		 
-		 // solving expression 1
-		 Lexer.lex();
-		 e1.solveExpression();
-		 valueExpr1 = Stmt.resultOfExpr;
-		 
-		 // storing the comparison operator
-		 op = Lexer.nextToken;
-		 
-		 // solving expression 2
-		 Lexer.lex();
-		 e2.solveExpression();
-		 valueExpr2 = Stmt.resultOfExpr;
-		 
-		 switch (op){
-		 	case 2:
-		 		Code.out.add("if_icmpeq ");
-		 		Lexer.lex(); // moves to compound Statement
-		 		cmp.solveCompound();
-		 		break;
-		 		
-		 	case 7:  // equal to
-		 		Code.out.add("if_icmpne ");
-		 		Lexer.lex(); // moves to compound Statement
-		 		cmp.solveCompound();
-		 		break;
-		 		
-		 	case 8:	 // greater than
-		 		Code.out.add("if_icmple ");
-		 		Lexer.lex(); // moves to compound Statement
-		 		cmp.solveCompound();
-		 		break;
-		 		
-		 	case 9:	 // lesser than
-		 		Code.out.add("if_icmpge ");
-		 		Lexer.lex(); // moves to compound Statement
-		 		cmp.solveCompound();
-		 		break;
-		 
-		 }
-		 
-	 }
+	 
 }
 
 class Expr {  
-	Term t = new Term();
-	public void solveExpression(){
-		t.solveTerm();
+	Term t;
+	Expr e;
+	char op;
+
+	public Expr() {
+		t = new Term();
 		
 		if (Assign.firstTermCovered == false) {
-			Stmt.resultOfExpr = Stmt.resultOfTerm;
+			Assign.resultOfExpr = Assign.resultOfTerm;
 			Assign.firstTermCovered = true;
-			//System.out.println(Stmt.resultOfExpr);
 		}
-
 		
-		if (Lexer.nextToken == Token.ADD_OP) {
-			
-			int termresult = Stmt.resultOfTerm;
-			
+		if (Lexer.nextToken == Token.ADD_OP || Lexer.nextToken == Token.SUB_OP) {
+			op = Lexer.nextChar;
+			int termresult = Assign.resultOfTerm;
 			Lexer.lex();
-			new Expr().solveExpression();
-
-			Stmt.resultOfExpr = Stmt.resultOfExpr + termresult;
-			System.out.println(Stmt.resultOfExpr);
-			return;
+			e = new Expr();
 			
-		} else if (Lexer.nextToken == Token.SUB_OP) {
+			switch(op){
+			case '+':
+				Assign.resultOfExpr = termresult + Assign.resultOfExpr;
+				
+				break;
+			case '-':
+				Assign.resultOfExpr = termresult - Assign.resultOfExpr;
+				break;
+			default:
+				break;
+			}
 			
-			int termresult = Stmt.resultOfTerm;
-			
-			Lexer.lex();
-			new Expr().solveExpression();
-
-			Stmt.resultOfExpr = Stmt.resultOfExpr - termresult;
-			return;
+			Code.out.add(Code.getCode(op));
 		} else if (Lexer.nextToken != Token.ADD_OP && Lexer.nextToken != Token.SUB_OP){
-			Stmt.resultOfExpr = Stmt.resultOfTerm;
+			Assign.resultOfExpr = Assign.resultOfTerm;
 		}
-
-		
 		
 	}
-	 
 }
 
 class Term {  
-	 Factor f = new Factor();
-	 public void solveTerm(){
-		f.solveFactor();
-		 
+	Factor f;
+	Term t;
+	char op;
+
+	public Term() {
+		f = new Factor();
+		
 		if (Assign.firstFactorCovered == false) {
-			Stmt.resultOfTerm = Stmt.resultOfFactor;
+			Assign.resultOfTerm = Assign.resultOfFactor;
 			Assign.firstFactorCovered = true;
 		}
 		
-		
-
-		if (Lexer.nextToken == Token.MULT_OP) {
-			int factresult = Stmt.resultOfFactor;
+		if (Lexer.nextToken == Token.MULT_OP || Lexer.nextToken == Token.DIV_OP) {
+			op = Lexer.nextChar;
+			int factresult = Assign.resultOfFactor;
 			Lexer.lex();
-			new Term().solveTerm();
-
-			Stmt.resultOfTerm = Stmt.resultOfTerm * factresult;
-		} else if (Lexer.nextToken == Token.DIV_OP) {
+			t = new Term();
 			
-			int factresult = Stmt.resultOfFactor;
-			Lexer.lex();
-			new Term().solveTerm();
-
-			Stmt.resultOfTerm = Stmt.resultOfTerm / factresult;
+			switch(op){
+			case '*':
+				Assign.resultOfTerm = factresult * Assign.resultOfTerm;
+				break;
+			case '/':
+				Assign.resultOfTerm = factresult / Assign.resultOfTerm;
+				break;
+			default:
+				break;
+			}
+			
+			Code.out.add(Code.getCode(op));
 		} else if (Lexer.nextToken != Token.MULT_OP && Lexer.nextToken != Token.DIV_OP){
-			Stmt.resultOfTerm = Stmt.resultOfFactor;
+			Assign.resultOfTerm = Assign.resultOfFactor;
 		}
-			
-		 
-	 }
+	}
 }
 
-class Factor { 
-	
-	public void solveFactor(){
-		
-		if(Lexer.nextToken == Token.ID){
-			Stmt.resultOfFactor = Parser.value_id_map.get(Lexer.ident);
+class Factor {  
+	Expr e;
+	int i;
+
+	public Factor() {
+		switch (Lexer.nextToken) {
+		case Token.INT_LIT: // number
+			Assign.resultOfFactor = Lexer.intValue;
 			Lexer.lex();
-			return;
-		} else if (Lexer.nextToken == Token.INT_LIT) {
-			Stmt.resultOfFactor = Lexer.intValue;
+			if (Lexer.intValue >=0 && Lexer.intValue < 6){
+				Code.out.add("iconst_"+ Assign.resultOfFactor);
+			} else if (Lexer.intValue >=6 && Lexer.intValue < 128) {
+				Code.out.add("bipush "+ Assign.resultOfFactor);
+			} else if (Lexer.intValue >= 128) {
+				Code.out.add("sipush "+ Assign.resultOfFactor);
+			}
+			
+			break;
+		case Token.ID:
+			Assign.resultOfFactor = Parser.id_value_map.get(Lexer.ident);
+			Code.out.add("iload_" + Parser.id_map.get(Lexer.ident));
 			Lexer.lex();
-			return; 
-		} else if (Lexer.nextToken == Token.SEMICOLON) {
-			return;
+			break;
+		case Token.LEFT_PAREN: // '('
+			Lexer.lex();
+			e = new Expr();
+			Assign.resultOfFactor = Assign.resultOfExpr;
+			Lexer.lex(); // skip over ')'
+			break;
+		default:
+			break;
 		}
-		
-	}
-	 
+	}	 
 }
 
 class Code {
-	static HashMap<Integer, String> opcode = new HashMap<Integer, String>();
+	static HashMap<Character, String> opcode= new HashMap<Character, String>();
+	static HashMap<String, Integer> bytesToAddCode = new HashMap<String, Integer>();
 	public static void setCodes(){
-		opcode.put(Token.MULT_OP, "imult");
-		opcode.put(Token.SUB_OP, "isub");
-		opcode.put(Token.ADD_OP, "iadd");
-		opcode.put(Token.DIV_OP, "idiv");
+		opcode.put('*', "imul");
+		opcode.put('-', "isub");
+		opcode.put('+', "iadd");
+		opcode.put('/', "idiv");
 	}
 	
-	public static String getCode(int a){
+	public static void bytesToAdd(){
+		bytesToAddCode.put("iconst", 1);
+		bytesToAddCode.put("istore", 1);
+		bytesToAddCode.put("bipush", 2);
+		bytesToAddCode.put("sipush", 3);
+		bytesToAddCode.put("imul", 1);
+		bytesToAddCode.put("isub", 1);
+		bytesToAddCode.put("iadd", 1);
+		bytesToAddCode.put("idiv", 1);
+		bytesToAddCode.put("return", 1);
+		bytesToAddCode.put("iload", 1);
+		
+	}
+	
+	public static String getCode(char a){
 		return opcode.get(a);
 	}
 
 	static ArrayList<String> out = new ArrayList<String>();
 	public static void output(){
-		for(int o = 0; o<out.size(); o++){
-			System.out.println(o + " : " + out.get(o));
-		}	
-		out = new ArrayList<String>();
-	}	 
-	 
+		for (String a:out){
+			System.out.println(a);
+		}
+	out = new ArrayList<String>();
+	}
 }
 
 
