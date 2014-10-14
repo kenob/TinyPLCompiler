@@ -1,5 +1,6 @@
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -123,7 +124,7 @@ class Stmts {
 	public Stmts()
 	 {	
 		 new Stmt();
-		 if (Lexer.nextToken != Token.KEY_END)
+		 if (Lexer.nextToken != Token.KEY_END && Lexer.nextToken != Token.RIGHT_BRACE)
 		 {	
 			 Lexer.lex();
 			 new Stmts();
@@ -147,9 +148,7 @@ class Assign {
 		new Expr();
 		Parser.id_value_map.put(assignment, Assign.resultOfExpr);
 		int storeID = Parser.id_map.get(assignment);
-		Code.out.add("istore_" + storeID);
-		
-		
+		Code.out.add("istore_" + storeID);		
 		firstTermCovered = false;
 		firstFactorCovered = false;
 		resultOfTerm = 1;
@@ -161,19 +160,128 @@ class Assign {
 }
 
 class Cond {
-	 
+	Cmpdstmt st;
+	int position;
+	public Cond(){
+		if(Lexer.nextToken==Token.KEY_IF){
+	 		//mark this point as an icmp location. could be replaced by a simple variable, but this works for now
+			Code.destinations.push(Code.out.size());
+			Lexer.lex();
+			Rexpr r = new Rexpr();
+			st = new Cmpdstmt();
+			Lexer.lex();
+			if(Lexer.nextToken==Token.KEY_ELSE){
+				position = Code.positions.pop();
+				//set this as the icmp destination for the if part, and mark this point as a location
+				Code.positions.push(Code.out.size());
+				Code.out.add("goto");
+				Code.out.add("Skip");
+				Code.out.add("Skip");
+				Code.out.set(position, Code.out.get(position)+ " " + Integer.toString(Code.out.size()));
+				//mark this point as an icmpq destination
+				Lexer.lex();
+				st = new Cmpdstmt();
+			}
+			int position = Code.positions.pop();
+			Code.out.set(position, Code.out.get(position)+ " " + Integer.toString(Code.out.size()));
+		}
+		 
+	}
 }
 
 class Loop {
+	public Loop(){
+		if(Lexer.nextToken==Token.KEY_WHILE){
+			Lexer.lex();
+ 		//mark this point as an icmp location. could be replaced by a simple variable, but this works for now
+			Code.gotoDests.push(Code.out.size());
+			Rexpr r = new Rexpr();
+		}
+		Cmpdstmt st = new Cmpdstmt();
+		System.out.println(Lexer.nextChar);
+		int goToPoint = Code.gotoDests.pop();
+		int position = Code.positions.pop();
+		Code.out.add("goto " + goToPoint);
+ 		Code.out.add("Skip");
+ 		Code.out.add("Skip");
+		Code.out.set(position, Code.out.get(position)+ " " + Integer.toString(Code.out.size()));
+	}
 	 
 }
 
 class Cmpdstmt {
-	 
+	 public Cmpdstmt(){
+		 if(Lexer.nextToken==Token.LEFT_BRACE){
+			 Lexer.lex();
+			 new Cmpdstmt();
+		 }
+		 else if(Lexer.nextToken==Token.RIGHT_BRACE){
+			 //quietly leave
+			 Lexer.lex();
+		 }
+		 else{
+			 new Stmts();
+			 new Cmpdstmt();
+		 }
+	 }
 }
 
 class Rexpr {
-	 
+	Rexpr r;
+	static String cmp;
+	public Rexpr(){
+	 	if(Lexer.nextToken== Token.LEFT_PAREN)
+	 	{
+	 		Lexer.lex();
+	 		r = new Rexpr();
+	 	}
+	 	else if(Lexer.nextToken== Token.LESSER_OP)
+	 	{
+	 		cmp = "if_icmpge";	
+	 		Lexer.lex();
+	 		r = new Rexpr();
+	 	}
+	 	else if(Lexer.nextToken== Token.GREATER_OP)
+	 	{
+	 		cmp = "if_icmple";
+	 		Lexer.lex();
+	 		r = new Rexpr();
+	 	}
+	 	else if(Lexer.nextToken== Token.NOT_EQ)
+	 	{
+	 		cmp = "if_icmpne";
+	 		Lexer.lex();
+	 		r = new Rexpr();
+	 	}
+	 	//representing equals for now
+	 	else if(Lexer.nextToken== Token.ASSIGN_OP)
+	 	{
+	 		cmp = "if_icmpeq";	
+	 		Lexer.lex();
+	 		r = new Rexpr();
+	 	}
+	 	else if(Lexer.nextToken== Token.INT_LIT)
+	 	{
+	 		Lexer.lex();
+	 		//TODO: use the correct push command
+	 		Code.out.add("iconst_" + Lexer.intValue);
+	 		r = new Rexpr();
+	 	}
+	 	else if(Lexer.nextToken== Token.ID)
+	 	{
+	 		Lexer.lex();
+	 		Code.out.add("iload_" + Parser.id_map.get(Lexer.ident));
+	 		r = new Rexpr();
+	 	}
+	 	else if(Lexer.nextToken== Token.RIGHT_PAREN)
+	 	{
+	 		Code.positions.push(Code.out.size());
+	 		Code.out.add(cmp);
+	 		Code.out.add("Skip");
+	 		Code.out.add("Skip");
+	 		Lexer.lex();	 		
+	 	}
+	}
 }
 
 class Expr {  
@@ -265,15 +373,16 @@ class Factor {
 				Code.out.add("iconst_"+ Assign.resultOfFactor);
 			} else if (Lexer.intValue >=6 && Lexer.intValue < 128) {
 				Code.out.add("bipush "+ Assign.resultOfFactor);
+				Code.out.add("Skip");
 			} else if (Lexer.intValue >= 128) {
 				Code.out.add("sipush "+ Assign.resultOfFactor);
 			}
 			
 			break;
 		case Token.ID:
+			Lexer.lex();
 			Assign.resultOfFactor = Parser.id_value_map.get(Lexer.ident);
 			Code.out.add("iload_" + Parser.id_map.get(Lexer.ident));
-			Lexer.lex();
 			break;
 		case Token.LEFT_PAREN: // '('
 			Lexer.lex();
@@ -316,22 +425,29 @@ class Code {
 	}
 
 	static ArrayList<String> out = new ArrayList<String>();
+	static Stack<Integer> positions = new Stack<Integer>();
+	static Stack<Integer> destinations = new Stack<Integer>();
+	static Stack<Integer> gotoDests = new Stack<Integer>();
 	public static void output(){
 		int bytecount = 0;
 		Pattern p = Pattern.compile("([a-z]+)");
 		Matcher m1;
 		int bytes;
-		for (String a:out){
-			m1 = p.matcher(a);
-			if (m1.find() == true)
-			{
-				bytes = Code.bytesToAddCode.get(m1.group());
+		for (int i = 0; i<out.size(); i++){
+//			m1 = p.matcher(a);
+//			if (m1.find() == true)
+//			{
+//				bytes = Code.bytesToAddCode.get(m1.group());
+//			}
+//			else{
+//				bytes = 1;
+//			}
+//			System.out.println(bytecount + ": " + a);
+//			bytecount +=bytes;
+			String sout = out.get(i);
+			if(!(sout=="Skip")){
+				System.out.println(i + ": " + sout);
 			}
-			else{
-				bytes = 1;
-			}
-			System.out.println(bytecount + ": " + a);
-			bytecount +=bytes;
 		}
 	out = new ArrayList<String>();
 	}
